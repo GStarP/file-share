@@ -1,0 +1,24 @@
+.connect-status__waiting {
+  background-color: #dc7609;
+}
+.connect-status__connecting {
+  background-color: #0973dc;
+  animation: blink 2s infinite;
+}
+@keyframes blink {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+.connect-status__connected {
+  background-color: #008a2e;
+}
+.connect-status__offline {
+  background-color: #e60000;
+}
