@@ -4,6 +4,10 @@
   "version": "0.0.0",
   "type": "module",
   "author": "GStarP",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/GStarP/file-share.git"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",

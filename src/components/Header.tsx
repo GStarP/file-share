@@ -18,5 +18,5 @@ export default function Header() {
 }
 
 function toGithub() {
-  window.open('https://github.com/GStarP', '_blank')
+  window.open('https://github.com/GStarP/file-share', '_blank')
 }
