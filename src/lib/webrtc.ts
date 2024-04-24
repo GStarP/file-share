@@ -1,7 +1,12 @@
-import { ConnectStatus } from '@/app/store'
 import Emitter from 'blink-hub'
 import Peer, { DataConnection } from 'peerjs'
 
+export enum ConnectStatus {
+  WAITING,
+  CONNECTING,
+  CONNECTED,
+  OFFLINE,
+}
 export type WebRtcManagerEventMap = {
   statusChange: (status: ConnectStatus) => void
 }
@@ -9,11 +14,12 @@ export type WebRtcManagerEventMap = {
 export class WebRtcManager {
   status = ConnectStatus.OFFLINE
 
-  private _emitter = new Emitter<WebRtcManagerEventMap>()
-  private _peer: Peer | null = null
-  private _conn: DataConnection | null = null
+  protected _emitter = new Emitter<WebRtcManagerEventMap>()
+  protected _peer: Peer | null = null
+  protected _conn: DataConnection | null = null
+  protected _onData?: (data: unknown) => void
 
-  constructor(private _code: string) {
+  constructor(protected _code: string) {
     this._setupPeerJS()
   }
 
@@ -22,6 +28,13 @@ export class WebRtcManager {
       return await getSelectedCandidate(this._conn.peerConnection)
     }
     return undefined
+  }
+
+  sendData(data: string | ArrayBuffer) {
+    if (!this._conn) {
+      throw new Error('data connection not ready')
+    }
+    this._conn.send(data)
   }
 
   close() {
@@ -46,11 +59,7 @@ export class WebRtcManager {
       this._setStatus(ConnectStatus.WAITING)
     })
     this._peer.on('connection', (conn) => {
-      this._conn = conn
-      this._conn.on('open', () => {
-        this._setStatus(ConnectStatus.CONNECTED)
-        this._peer?.disconnect()
-      })
+      this._setupDataConnection(conn)
     })
   }
 
@@ -58,11 +67,18 @@ export class WebRtcManager {
     this._peer = new Peer({ debug: import.meta.env.DEV ? 3 : 1 })
     this._peer.on('open', () => {
       this._setStatus(ConnectStatus.CONNECTING)
-      this._conn = this._peer!.connect(peerId)
-      this._conn.on('open', () => {
-        this._setStatus(ConnectStatus.CONNECTED)
-        this._peer?.disconnect()
-      })
+      this._setupDataConnection(this._peer!.connect(peerId))
+    })
+  }
+
+  private _setupDataConnection(dc: DataConnection) {
+    this._conn = dc
+    dc.on('open', () => {
+      this._setStatus(ConnectStatus.CONNECTED)
+      this._peer?.disconnect()
+    })
+    dc.on('data', (data) => {
+      this._onData?.(data)
     })
   }
 

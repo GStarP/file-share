@@ -1,12 +1,6 @@
 import { atom } from 'helux'
-import type { WebRtcManager, getSelectedCandidate } from '@/lib/webrtc'
-
-export enum ConnectStatus {
-  WAITING,
-  CONNECTING,
-  CONNECTED,
-  OFFLINE,
-}
+import { ConnectStatus, type getSelectedCandidate } from '@/lib/webrtc'
+import { type FileShareManager } from '@/lib/file'
 
 const [err, setErr] = atom<string>('')
 const [status, setStatus] = atom(ConnectStatus.OFFLINE)
@@ -25,5 +19,5 @@ export const FileShareStore = {
 
 export const FileShareGlobal = {
   code: '',
-  manager: null as WebRtcManager | null,
+  manager: null as FileShareManager | null,
 }

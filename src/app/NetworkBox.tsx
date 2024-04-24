@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
-import { ConnectStatus, FileShareGlobal, FileShareStore } from './store'
+import { FileShareGlobal, FileShareStore } from './store'
 import { useAtom } from 'helux'
-import { IceCandidateInfo, WebRtcManager } from '@/lib/webrtc'
+import { ConnectStatus, IceCandidateInfo, WebRtcManager } from '@/lib/webrtc'
 import { Globe } from 'lucide-react'
 
 export default function NetworkBox() {
@@ -12,10 +12,11 @@ export default function NetworkBox() {
   }, [])
 
   const [selectedCandidate] = useAtom(FileShareStore.selectedCandidate)
-  const ip = selectedCandidate?.remote.ip || selectedCandidate?.remote.address
+  const ip =
+    selectedCandidate?.remote.ip || selectedCandidate?.remote.address || '--'
   const type = selectedCandidate?.remote
     ? connectionType(selectedCandidate?.remote)
-    : undefined
+    : '--'
 
   return (
     <>
@@ -23,20 +24,20 @@ export default function NetworkBox() {
         <Globe size={16} />
         <div>{type}</div>
       </div>
-      <div className="hidden sm:flex flex-col w-64 border rounded-lg m-6 p-4">
+      <div className="hidden sm:flex flex-col w-72 border rounded-lg m-6 p-6">
         <div className="flex flex-row items-center justify-between">
           <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight">
             Network
           </h3>
           <Globe size={24} />
         </div>
-        <div className="mt-4 flex flex-row">
+        <div className="mt-6 flex flex-row">
           <div className="w-1/2">
-            <small className="block text-sm">Type</small>
+            <small className="text-sm font-medium leading-none">Type</small>
             <p className="mt-1">{type}</p>
           </div>
           <div>
-            <small className="block text-sm">Peer IP</small>
+            <small className="text-sm font-medium leading-none">Peer IP</small>
             <p className="mt-1">{ip}</p>
           </div>
         </div>
