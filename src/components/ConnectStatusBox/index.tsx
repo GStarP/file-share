@@ -1,11 +1,10 @@
-import { FileShareStore } from '@/app/store'
+import { FileShareGlobal } from '@/app/store'
 import clsx from 'clsx'
-import { useAtom } from 'helux'
 import './index.css'
 import { ConnectStatus } from '@/lib/webrtc'
 
 export default function ConnectStatusBox() {
-  const [connectStatus] = useAtom(FileShareStore.status)
+  const [connectStatus] = FileShareGlobal.manager.status.useState()
 
   const statusText = connectStatusText(connectStatus)
 

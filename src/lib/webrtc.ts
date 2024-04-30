@@ -1,4 +1,4 @@
-import Emitter from 'blink-hub'
+import { atomx } from 'helux'
 import Peer, { DataConnection } from 'peerjs'
 
 export enum ConnectStatus {
@@ -12,22 +12,19 @@ export type WebRtcManagerEventMap = {
 }
 
 export class WebRtcManager {
-  status = ConnectStatus.OFFLINE
+  code = ''
+  status = atomx<ConnectStatus>(ConnectStatus.OFFLINE)
+  networkInfo = atomx<
+    Awaited<ReturnType<typeof getSelectedCandidate>> | undefined
+  >(undefined)
 
-  protected _emitter = new Emitter<WebRtcManagerEventMap>()
   protected _peer: Peer | null = null
   protected _conn: DataConnection | null = null
   protected _onData?: (data: unknown) => void
 
-  constructor(protected _code: string) {
+  setup(code: string) {
+    this.code = code
     this._setupPeerJS()
-  }
-
-  async getSelectedCandidate() {
-    if (this._conn) {
-      return await getSelectedCandidate(this._conn.peerConnection)
-    }
-    return undefined
   }
 
   sendData(data: string | ArrayBuffer) {
@@ -40,13 +37,13 @@ export class WebRtcManager {
   close() {
     this._peer?.destroy()
     this._peer = null
-    this._setStatus(ConnectStatus.OFFLINE)
+    this.status.setState(ConnectStatus.OFFLINE)
   }
 
   private _setupPeerJS() {
-    const code = `gstarp_file-share_${this._code}`
+    const code = `gstarp_file-share_${this.code}`
     this._peer = new Peer(code, {
-      debug: import.meta.env.DEV ? 3 : 1,
+      debug: 3,
     })
     // if id already taken, just connect it
     this._peer.on('error', (err) => {
@@ -56,7 +53,7 @@ export class WebRtcManager {
       // TODO: error handling
     })
     this._peer.on('open', () => {
-      this._setStatus(ConnectStatus.WAITING)
+      this.status.setState(ConnectStatus.WAITING)
     })
     this._peer.on('connection', (conn) => {
       this._setupDataConnection(conn)
@@ -64,9 +61,9 @@ export class WebRtcManager {
   }
 
   private _connect(peerId: string) {
-    this._peer = new Peer({ debug: import.meta.env.DEV ? 3 : 1 })
+    this._peer = new Peer({ debug: 3 })
     this._peer.on('open', () => {
-      this._setStatus(ConnectStatus.CONNECTING)
+      this.status.setState(ConnectStatus.CONNECTING)
       this._setupDataConnection(this._peer!.connect(peerId))
     })
   }
@@ -74,7 +71,8 @@ export class WebRtcManager {
   private _setupDataConnection(dc: DataConnection) {
     this._conn = dc
     dc.on('open', () => {
-      this._setStatus(ConnectStatus.CONNECTED)
+      this.status.setState(ConnectStatus.CONNECTED)
+      this._ensureNetworkInfo()
       this._peer?.disconnect()
     })
     dc.on('data', (data) => {
@@ -82,18 +80,37 @@ export class WebRtcManager {
     })
   }
 
-  private _setStatus(status: ConnectStatus) {
-    this.status = status
-    this._emitter.emit('statusChange', status)
-  }
-
-  on<E extends keyof WebRtcManagerEventMap>(
-    event: E,
-    listener: WebRtcManagerEventMap[E]
-  ) {
-    return this._emitter.subscribe(event, listener)
+  private async _ensureNetworkInfo(maxTries = 3, interval = 1000) {
+    let tries = 0
+    const tryLater = () =>
+      setTimeout(async () => {
+        const pc = this._conn?.peerConnection
+        if (pc) {
+          const candidate = await getSelectedCandidate(pc)
+          console.debug('ensureSelectedCandidate', candidate)
+          tries++
+          this.networkInfo.setState(candidate)
+          // info complete
+          if (
+            candidate &&
+            (candidate.remote.ip || candidate.remote.address) &&
+            candidate.remote.candidateType &&
+            candidate.remote.protocol
+          ) {
+            return
+          }
+          // achieve max tries
+          if (tries >= maxTries) return
+        }
+        tryLater()
+      }, interval)
+    tryLater()
   }
 }
+
+/**
+ * Utils
+ */
 
 export type IceCandidateInfo = {
   ip?: string

@@ -1,22 +1,13 @@
-import { useEffect } from 'react'
-import { FileShareGlobal, FileShareStore } from './store'
-import { useAtom } from 'helux'
-import { ConnectStatus, IceCandidateInfo, WebRtcManager } from '@/lib/webrtc'
+import { FileShareGlobal } from './store'
+import { IceCandidateInfo } from '@/lib/webrtc'
 import { Globe } from 'lucide-react'
 
 export default function NetworkBox() {
-  useEffect(() => {
-    if (FileShareGlobal.manager?.status === ConnectStatus.CONNECTED) {
-      ensureSelectedCandidate(FileShareGlobal.manager)
-    }
-  }, [])
-
-  const [selectedCandidate] = useAtom(FileShareStore.selectedCandidate)
-  const ip =
-    selectedCandidate?.remote.ip || selectedCandidate?.remote.address || '--'
-  const type = selectedCandidate?.remote
-    ? connectionType(selectedCandidate?.remote)
-    : '--'
+  const [networkInfo] = FileShareGlobal.manager.networkInfo.useState()
+  const ip = networkInfo?.remote.ip || networkInfo?.remote.address || 'Unknown'
+  const type = networkInfo?.remote
+    ? connectionType(networkInfo?.remote)
+    : 'Unknown'
 
   return (
     <>
@@ -44,34 +35,6 @@ export default function NetworkBox() {
       </div>
     </>
   )
-}
-
-async function ensureSelectedCandidate(
-  manager: WebRtcManager,
-  maxTries = 3,
-  interval = 1000
-) {
-  let tries = 0
-  const tryLater = () =>
-    setTimeout(async () => {
-      const candidate = await manager.getSelectedCandidate()
-      tries++
-      FileShareStore.setSelectedCandidate(candidate)
-      // achieve max tries
-      if (tries >= maxTries) return
-      // info complete
-      if (
-        candidate &&
-        (candidate.remote.ip || candidate.remote.address) &&
-        candidate.remote.candidateType &&
-        candidate.remote.protocol
-      ) {
-        return
-      }
-      tryLater()
-    }, interval)
-
-  tryLater()
 }
 
 function connectionType(candidate: IceCandidateInfo): string {

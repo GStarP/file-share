@@ -1,13 +1,11 @@
 import Header from '@/components/Header'
 import ConnectBox from './ConnectBox'
 import { checkCode, genCode } from '@/lib/code'
-import { FileShareGlobal, FileShareStore } from './store'
+import { FileShareGlobal } from './store'
 import Error, { toErrorPage } from './Error'
 import { useEffect } from 'react'
 import { ConnectStatus } from '@/lib/webrtc'
-import { useAtom } from 'helux'
 import NetworkBox from './NetworkBox'
-import { FileShareManager } from '@/lib/file'
 import FileShareBox from './FileShareBox'
 export function Home() {
   const pathname = location.pathname
@@ -22,8 +20,7 @@ export function Home() {
     if (!checkCode(code)) {
       toErrorPage('invalid code')
     } else {
-      FileShareGlobal.code = code
-      child = <Main />
+      child = <Main code={code} />
     }
   }
 
@@ -35,19 +32,18 @@ export function Home() {
   )
 }
 
-function Main() {
+function Main({ code }: { code: string }) {
   useEffect(() => {
-    if (!FileShareGlobal.manager) {
-      const manager = new FileShareManager(FileShareGlobal.code)
-      manager.on('statusChange', (status) => {
-        FileShareStore.setStatus(status)
-        return void 0
-      })
-      FileShareGlobal.manager = manager
+    const manager = FileShareGlobal.manager
+    if (manager.status.state === ConnectStatus.OFFLINE) {
+      manager.setup(code)
     }
-  }, [])
+    return () => {
+      manager.close()
+    }
+  }, [code])
 
-  const [status] = useAtom(FileShareStore.status)
+  const [status] = FileShareGlobal.manager.status.useState()
 
   return status !== ConnectStatus.CONNECTED ? (
     <ConnectBox />

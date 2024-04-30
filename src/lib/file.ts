@@ -1,100 +1,237 @@
+import { v4 as uuid } from 'uuid'
 import { WebRtcManager } from './webrtc'
+import { atomx } from 'helux'
 
-export type FileInfo = {
-  id: number
-  name: string
+type FileInfo = {
+  id: string
   type: string
+  name: string
   size: number
 }
 
-export type Msg =
+export enum ShareFileStatus {
+  WAITING,
+  QUEUEING,
+  SHARING,
+  OK,
+  ERR,
+}
+
+type ShareFile = FileInfo & {
+  status: ShareFileStatus
+  err?: string
+  progress: number
+}
+type SendFile = ShareFile & {
+  file: File
+}
+
+type RecvFile = ShareFile & {
+  blobUrl?: string
+}
+
+type Msg =
   | {
       type: MsgType.SEND
       data: FileInfo
     }
   | {
       type: MsgType.SEND_ACK
-      data: boolean
+      data: {
+        id: string
+        ok: boolean
+      }
+    }
+  | {
+      type: MsgType.SEND_START
+      data: string
+    }
+  | {
+      type: MsgType.RECV
+      data: string
     }
 
-export enum MsgType {
+enum MsgType {
   SEND,
   SEND_ACK,
+  SEND_START,
+  RECV,
+}
+
+const SHARE_FILE_ERR = {
+  REFUSE: 'peer refuse to receive',
+  NETWORK: 'network error',
 }
 
 export class FileShareManager extends WebRtcManager {
-  private _fid = 0
-  private _sendFileQueue: (FileInfo & { file: File })[] = []
-  private _recvFileQueue: (FileInfo & { blob?: Blob })[] = []
+  sendFileQueue = atomx(new Map<string, SendFile>())
+  recvFileQueue = atomx(new Map<string, RecvFile>())
 
-  constructor(code: string) {
-    super(code)
+  private _curSendFileId: string | undefined = undefined
+  private _curRecvFileId: string | undefined = undefined
+
+  constructor() {
+    super()
   }
 
-  _onData: ((data: unknown) => void) | undefined = async (data) => {
+  protected _onData: ((data: unknown) => void) | undefined = async (data) => {
     if (typeof data === 'string') {
       const msg: Msg = JSON.parse(data)
+      console.debug('onData', msg)
       if (msg.type === MsgType.SEND) {
-        // @DEV
-        console.debug(msg)
-        this._recvFileQueue.push(msg.data)
-        this.sendData(
-          JSON.stringify({
-            type: MsgType.SEND_ACK,
-            data: true,
-          })
-        )
+        this._onSend(msg.data)
       } else if (msg.type === MsgType.SEND_ACK) {
-        if (msg.data) {
-          if (this._sendFileQueue.length === 0) {
-            console.error('no file to send')
-            return
-          }
-          const file = this._sendFileQueue[0]
-          const buffer = await readFileAsArrayBuffer(file.file)
-          this.sendData(buffer)
-        } else {
-          this._sendFileQueue.shift()
-        }
+        this._onSendAck(msg.data)
+      } else if (msg.type === MsgType.SEND_START) {
+        this._onSendStart(msg.data)
+      } else if (msg.type === MsgType.RECV) {
+        this._onRecv(msg.data)
       }
     } else {
-      if (this._recvFileQueue.length === 0) {
-        console.error('no file to receive')
-        return
-      }
-      const arrayBuffer = data as ArrayBuffer
-      const url = arrayBufferToObjectURL(
-        arrayBuffer,
-        this._recvFileQueue[0].type
-      )
-      const file = this._recvFileQueue[0]
-      downloadObjectURL(url, file.name)
-      URL.revokeObjectURL(url)
-      this._recvFileQueue.shift()
+      this._onFileData(data as ArrayBuffer)
     }
   }
 
   sendFile(rawFile: File) {
     const file: FileInfo = {
-      id: this._fid++,
+      id: uuid(),
       name: rawFile.name,
       type: rawFile.type,
       size: rawFile.size,
     }
 
-    this._sendFileQueue.push({
-      ...file,
-      file: rawFile,
+    this.sendFileQueue.setDraft((draft) => {
+      draft.set(file.id, {
+        ...file,
+        status: ShareFileStatus.WAITING,
+        progress: 0,
+        file: rawFile,
+      })
     })
 
-    const msg: Msg = {
-      type: MsgType.SEND,
-      data: file,
+    this.sendData(
+      JSON.stringify({
+        type: MsgType.SEND,
+        data: file,
+      })
+    )
+  }
+
+  ackSendFile(id: string, ok: boolean) {
+    this.sendData(JSON.stringify({ type: MsgType.SEND_ACK, data: { id, ok } }))
+    if (ok) {
+      this.recvFileQueue.setDraft((draft) => {
+        const file = draft.get(id)
+        if (file) {
+          file.status = ShareFileStatus.QUEUEING
+        }
+      })
+      // if nothing is sharing, start a share
+      if (this._curRecvFileId === undefined) {
+        this._startRecvFile(id)
+      }
     }
-    this.sendData(JSON.stringify(msg))
+  }
+
+  private _onSend(file: FileInfo) {
+    this.recvFileQueue.setDraft((draft) => {
+      draft.set(file.id, {
+        ...file,
+        status: ShareFileStatus.WAITING,
+        progress: 0,
+      })
+    })
+  }
+
+  private _onSendAck({ id, ok }: { id: string; ok: boolean }) {
+    this.sendFileQueue.setDraft((draft) => {
+      const file = draft.get(id)
+      if (file) {
+        if (ok) {
+          file.status = ShareFileStatus.SHARING
+          this._startSendFile(file)
+        } else {
+          file.status = ShareFileStatus.ERR
+          file.err = SHARE_FILE_ERR.REFUSE
+        }
+      }
+    })
+  }
+
+  private _onSendStart(id: string) {
+    const file = this.sendFileQueue.stateRoot.val.get(id)
+    if (file) {
+      this._startSendFile(file)
+    }
+  }
+
+  private _onFileData(data: ArrayBuffer) {
+    this.recvFileQueue.setDraft((draft) => {
+      if (this._curRecvFileId) {
+        const file = draft.get(this._curRecvFileId)
+        if (file) {
+          file.blobUrl = arrayBufferToObjectURL(data, file.type)
+          file.status = ShareFileStatus.OK
+          file.progress = file.size
+          this.sendData(
+            JSON.stringify({
+              type: MsgType.RECV,
+              data: file.id,
+            })
+          )
+        }
+        // cur file sharing finish, try to start next
+        this._curRecvFileId = undefined
+        let nextRecvFileId = undefined
+        for (const file of this.recvFileQueue.stateRoot.val.values()) {
+          if (file.status === ShareFileStatus.QUEUEING) {
+            nextRecvFileId = file.id
+            break
+          }
+        }
+        if (nextRecvFileId) {
+          this._startRecvFile(nextRecvFileId)
+        }
+      }
+    })
+  }
+
+  private _onRecv(id: string) {
+    this.sendFileQueue.setDraft((draft) => {
+      const file = draft.get(id)
+      if (file) {
+        file.status = ShareFileStatus.OK
+      }
+    })
+  }
+
+  private _startRecvFile(id: string) {
+    if (this._curRecvFileId === undefined) {
+      this._curRecvFileId = id
+      this.sendData(JSON.stringify({ type: MsgType.SEND_START, data: id }))
+    } else {
+      console.warn(
+        `_startRecvFile: other file is sharing, id=${this._curRecvFileId}`
+      )
+    }
+  }
+
+  private async _startSendFile(file: SendFile) {
+    this._curSendFileId = file.id
+    const buffer = await readFileAsArrayBuffer(file.file)
+    this.sendData(buffer)
   }
 }
 
+/**
+ * Utils
+ */
+
+/**
+ * trigger browser download for blob url
+ * @param url blob uri
+ * @param filename download file name
+ */
 export function downloadObjectURL(url: string, filename: string) {
   const a = document.createElement('a')
   a.download = filename
@@ -105,6 +242,11 @@ export function downloadObjectURL(url: string, filename: string) {
   document.body.removeChild(a)
 }
 
+/**
+ * convert ArrayBuffer to blob url
+ * @param type mime type
+ * @returns blob url
+ */
 export function arrayBufferToObjectURL(
   arrayBuffer: ArrayBuffer,
   type: string
@@ -113,6 +255,9 @@ export function arrayBufferToObjectURL(
   return URL.createObjectURL(blob)
 }
 
+/**
+ * read input file as ArrayBuffer
+ */
 export async function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
