@@ -5,7 +5,6 @@ import { FileShareGlobal } from './store'
 import Error, { toErrorPage } from './Error'
 import { useEffect } from 'react'
 import { ConnectStatus } from '@/lib/webrtc'
-import NetworkBox from './NetworkBox'
 import FileShareBox from './FileShareBox'
 export function Home() {
   const pathname = location.pathname
@@ -48,8 +47,7 @@ function Main({ code }: { code: string }) {
   return status !== ConnectStatus.CONNECTED ? (
     <ConnectBox />
   ) : (
-    <div className="w-full h-full">
-      <NetworkBox />
+    <div className="w-full h-full flex flex-col sm:flex-row">
       <FileShareBox />
     </div>
   )

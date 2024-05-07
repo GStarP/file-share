@@ -22,11 +22,19 @@ type ShareFile = FileInfo & {
   err?: string
   progress: number
 }
-type SendFile = ShareFile & {
+
+export enum ShareFileKind {
+  SEND,
+  RECV,
+}
+
+export type SendFile = ShareFile & {
+  kind: ShareFileKind.SEND
   file: File
 }
 
-type RecvFile = ShareFile & {
+export type RecvFile = ShareFile & {
+  kind: ShareFileKind.RECV
   blobUrl?: string
 }
 
@@ -64,8 +72,7 @@ const SHARE_FILE_ERR = {
 }
 
 export class FileShareManager extends WebRtcManager {
-  sendFileQueue = atomx(new Map<string, SendFile>())
-  recvFileQueue = atomx(new Map<string, RecvFile>())
+  files = atomx(new Map<string, SendFile | RecvFile>())
 
   private _curSendFileId: string | undefined = undefined
   private _curRecvFileId: string | undefined = undefined
@@ -100,9 +107,10 @@ export class FileShareManager extends WebRtcManager {
       size: rawFile.size,
     }
 
-    this.sendFileQueue.setDraft((draft) => {
+    this.files.setDraft((draft) => {
       draft.set(file.id, {
         ...file,
+        kind: ShareFileKind.SEND,
         status: ShareFileStatus.WAITING,
         progress: 0,
         file: rawFile,
@@ -120,7 +128,7 @@ export class FileShareManager extends WebRtcManager {
   ackSendFile(id: string, ok: boolean) {
     this.sendData(JSON.stringify({ type: MsgType.SEND_ACK, data: { id, ok } }))
     if (ok) {
-      this.recvFileQueue.setDraft((draft) => {
+      this.files.setDraft((draft) => {
         const file = draft.get(id)
         if (file) {
           file.status = ShareFileStatus.QUEUEING
@@ -134,9 +142,10 @@ export class FileShareManager extends WebRtcManager {
   }
 
   private _onSend(file: FileInfo) {
-    this.recvFileQueue.setDraft((draft) => {
+    this.files.setDraft((draft) => {
       draft.set(file.id, {
         ...file,
+        kind: ShareFileKind.RECV,
         status: ShareFileStatus.WAITING,
         progress: 0,
       })
@@ -144,9 +153,9 @@ export class FileShareManager extends WebRtcManager {
   }
 
   private _onSendAck({ id, ok }: { id: string; ok: boolean }) {
-    this.sendFileQueue.setDraft((draft) => {
+    this.files.setDraft((draft) => {
       const file = draft.get(id)
-      if (file) {
+      if (file && file.kind === ShareFileKind.SEND) {
         if (ok) {
           file.status = ShareFileStatus.SHARING
           this._startSendFile(file)
@@ -159,17 +168,17 @@ export class FileShareManager extends WebRtcManager {
   }
 
   private _onSendStart(id: string) {
-    const file = this.sendFileQueue.stateRoot.val.get(id)
-    if (file) {
+    const file = this.files.stateRoot.val.get(id)
+    if (file && file.kind === ShareFileKind.SEND) {
       this._startSendFile(file)
     }
   }
 
   private _onFileData(data: ArrayBuffer) {
-    this.recvFileQueue.setDraft((draft) => {
+    this.files.setDraft((draft) => {
       if (this._curRecvFileId) {
         const file = draft.get(this._curRecvFileId)
-        if (file) {
+        if (file && file.kind === ShareFileKind.RECV) {
           file.blobUrl = arrayBufferToObjectURL(data, file.type)
           file.status = ShareFileStatus.OK
           file.progress = file.size
@@ -183,8 +192,11 @@ export class FileShareManager extends WebRtcManager {
         // cur file sharing finish, try to start next
         this._curRecvFileId = undefined
         let nextRecvFileId = undefined
-        for (const file of this.recvFileQueue.stateRoot.val.values()) {
-          if (file.status === ShareFileStatus.QUEUEING) {
+        for (const file of this.files.stateRoot.val.values()) {
+          if (
+            file.kind === ShareFileKind.RECV &&
+            file.status === ShareFileStatus.QUEUEING
+          ) {
             nextRecvFileId = file.id
             break
           }
@@ -197,7 +209,7 @@ export class FileShareManager extends WebRtcManager {
   }
 
   private _onRecv(id: string) {
-    this.sendFileQueue.setDraft((draft) => {
+    this.files.setDraft((draft) => {
       const file = draft.get(id)
       if (file) {
         file.status = ShareFileStatus.OK
