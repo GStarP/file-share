@@ -230,6 +230,7 @@ export class FileShareManager extends WebRtcManager {
 
   private async _startSendFile(file: SendFile) {
     this._curSendFileId = file.id
+    console.log('[_startSendFile]', this._curSendFileId)
     const buffer = await readFileAsArrayBuffer(file.file)
     this.sendData(buffer)
   }

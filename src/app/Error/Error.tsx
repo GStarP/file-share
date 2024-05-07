@@ -4,8 +4,8 @@ export default function Error() {
   const err = decodeURIComponent(location.hash.replace('#', ''))
 
   return (
-    <div className="flex flex-col items-center mt-[50vh] translate-y-[calc(-100%_-_64px)]">
-      <div className="flex flex-row space-x-3 text-4xl mb-6 items-center">
+    <div className="flex flex-col items-center justify-center">
+      <div className="flex flex-row space-x-3 text-4xl mb-6 items-center mt-[-2.5rem]">
         <p>ERROR</p>
         <div className="h-[2rem] w-[1px] bg-border"></div>
         <p>{err.toUpperCase()}</p>
