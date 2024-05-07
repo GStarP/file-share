@@ -1,6 +1,7 @@
-import { v4 as uuid } from 'uuid'
-import { WebRtcManager } from './webrtc'
 import { atomx } from 'helux'
+import { v4 as uuid } from 'uuid'
+
+import { WebRtcManager } from './webrtc'
 
 type FileInfo = {
   id: string
@@ -121,7 +122,7 @@ export class FileShareManager extends WebRtcManager {
       JSON.stringify({
         type: MsgType.SEND,
         data: file,
-      })
+      }),
     )
   }
 
@@ -186,7 +187,7 @@ export class FileShareManager extends WebRtcManager {
             JSON.stringify({
               type: MsgType.RECV,
               data: file.id,
-            })
+            }),
           )
         }
         // cur file sharing finish, try to start next
@@ -223,7 +224,7 @@ export class FileShareManager extends WebRtcManager {
       this.sendData(JSON.stringify({ type: MsgType.SEND_START, data: id }))
     } else {
       console.warn(
-        `_startRecvFile: other file is sharing, id=${this._curRecvFileId}`
+        `_startRecvFile: other file is sharing, id=${this._curRecvFileId}`,
       )
     }
   }
@@ -262,7 +263,7 @@ export function downloadObjectURL(url: string, filename: string) {
  */
 export function arrayBufferToObjectURL(
   arrayBuffer: ArrayBuffer,
-  type: string
+  type: string,
 ): string {
   const blob = new Blob([arrayBuffer], { type })
   return URL.createObjectURL(blob)

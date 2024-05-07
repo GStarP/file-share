@@ -1,11 +1,14 @@
-import Header from '@/components/Header'
-import ConnectBox from './ConnectBox'
-import { checkCode, genCode } from '@/lib/code'
-import { FileShareGlobal } from './store'
-import Error, { toErrorPage } from './Error'
 import { useEffect } from 'react'
+
+import Header from '@/components/Header'
+import { checkCode, genCode } from '@/lib/code'
 import { ConnectStatus } from '@/lib/webrtc'
+
+import ConnectBox from './ConnectBox'
+import Error, { toErrorPage } from './Error'
 import FileShareBox from './FileShareBox'
+import { FileShareGlobal } from './store'
+
 export function Home() {
   const pathname = location.pathname
   let child: JSX.Element | null = null
@@ -24,9 +27,11 @@ export function Home() {
   }
 
   return (
-    <main className="flex flex-col h-screen">
+    <main className="flex h-screen flex-col">
       <Header />
-      <div className="flex flex-row flex-1 justify-center">{child}</div>
+      <div className="flex flex-1 flex-row justify-center overflow-y-auto">
+        {child}
+      </div>
     </main>
   )
 }
@@ -44,11 +49,5 @@ function Main({ code }: { code: string }) {
 
   const [status] = FileShareGlobal.manager.status.useState()
 
-  return status !== ConnectStatus.CONNECTED ? (
-    <ConnectBox />
-  ) : (
-    <div className="w-full h-full flex flex-col sm:flex-row">
-      <FileShareBox />
-    </div>
-  )
+  return status !== ConnectStatus.CONNECTED ? <ConnectBox /> : <FileShareBox />
 }

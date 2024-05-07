@@ -1,6 +1,8 @@
-import { FileShareGlobal } from './store'
-import { IceCandidateInfo } from '@/lib/webrtc'
 import { Globe } from 'lucide-react'
+
+import { IceCandidateInfo } from '@/lib/webrtc'
+
+import { FileShareGlobal } from './store'
 
 export default function NetworkBox() {
   const [networkInfo] = FileShareGlobal.manager.networkInfo.useState()
@@ -11,11 +13,11 @@ export default function NetworkBox() {
 
   return (
     <>
-      <div className="flex sm:hidden flex-row justify-center items-center m-2 text-sm space-x-2 h-[20px]">
+      <div className="m-2 flex h-[20px] flex-row items-center justify-center space-x-2 text-sm sm:hidden">
         <Globe size={16} />
         <div>{type}</div>
       </div>
-      <div className="hidden sm:flex flex-col w-72 border rounded-lg m-6 p-6">
+      <div className="m-6 hidden w-72 flex-col rounded-lg border p-6 sm:flex">
         <div className="flex flex-row items-center justify-between">
           <h3 className="scroll-m-20 text-2xl font-semibold tracking-tight">
             Network

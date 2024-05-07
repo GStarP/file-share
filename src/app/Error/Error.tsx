@@ -5,7 +5,7 @@ export default function Error() {
 
   return (
     <div className="flex flex-col items-center justify-center">
-      <div className="flex flex-row space-x-3 text-4xl mb-6 items-center mt-[-2.5rem]">
+      <div className="mb-6 mt-[-2.5rem] flex flex-row items-center space-x-3 text-4xl">
         <p>ERROR</p>
         <div className="h-[2rem] w-[1px] bg-border"></div>
         <p>{err.toUpperCase()}</p>

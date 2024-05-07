@@ -1,6 +1,6 @@
-import { ThemeProvider } from '@/components/ui/theme-provider'
-import { Toaster } from '@/components/ui/sonner'
 import { Home } from '@/app/Home'
+import { Toaster } from '@/components/ui/sonner'
+import { ThemeProvider } from '@/components/ui/theme-provider'
 
 function App() {
   return (

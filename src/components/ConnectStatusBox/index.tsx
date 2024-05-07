@@ -1,7 +1,9 @@
-import { FileShareGlobal } from '@/app/store'
 import clsx from 'clsx'
-import './index.css'
+
+import { FileShareGlobal } from '@/app/store'
 import { ConnectStatus } from '@/lib/webrtc'
+
+import './index.css'
 
 export default function ConnectStatusBox() {
   const [connectStatus] = FileShareGlobal.manager.status.useState()
@@ -12,8 +14,8 @@ export default function ConnectStatusBox() {
     <div className="flex items-center">
       <div
         className={clsx(
-          'w-4 h-4 rounded-full',
-          `connect-status__${statusText}`
+          'h-4 w-4 rounded-full',
+          `connect-status__${statusText}`,
         )}
       ></div>
       <p className="ml-4">
