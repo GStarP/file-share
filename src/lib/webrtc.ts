@@ -1,5 +1,6 @@
 import { atomx } from 'helux'
 import Peer, { DataConnection, PeerOptions } from 'peerjs'
+import { toast } from 'sonner'
 
 export enum ConnectStatus {
   OFFLINE,
@@ -24,6 +25,10 @@ const PEERJS_CONFIG: PeerOptions = {
       { urls: 'stun:stun4.l.google.com:5349' },
     ],
   },
+}
+
+const ERR_TEXT = {
+  ICE_FAIL: 'Connection to peer failed, please check firewall',
 }
 
 export class WebRtcManager {
@@ -71,12 +76,9 @@ export class WebRtcManager {
     })
     this._peer.on('open', () => {
       this.status.setState(ConnectStatus.WAITING)
-      console.log(this._peer)
-    })
-    this._peer.on('call', () => {
-      this.status.setState(ConnectStatus.CONNECTING)
     })
     this._peer.on('connection', (conn) => {
+      this.status.setState(ConnectStatus.CONNECTING)
       this._setupDataConnection(conn)
     })
   }
@@ -92,17 +94,23 @@ export class WebRtcManager {
 
   private _setupRTCPeerConnection(pc: RTCPeerConnection) {
     pc.oniceconnectionstatechange = () => {
+      console.log(
+        `[FS] pc.oniceconnectionstatechange: ${pc.iceConnectionState}`,
+      )
       if (
         pc.iceConnectionState === 'disconnected' ||
         pc.iceConnectionState === 'failed'
       ) {
-        this.err.setState('Connection to peer failed, please check firewall')
+        this.err.setState(ERR_TEXT.ICE_FAIL)
       }
     }
   }
 
   private _setupDataConnection(dc: DataConnection) {
     this._conn = dc
+
+    this._setupRTCPeerConnection(dc.peerConnection)
+
     dc.on('open', () => {
       this.status.setState(ConnectStatus.CONNECTED)
       this._ensureNetworkInfo()
@@ -111,8 +119,20 @@ export class WebRtcManager {
     dc.on('data', (data) => {
       this._onData?.(data)
     })
+    dc.on('error', (e) => {
+      console.log(`[FS] dc.onerror: ${e}`)
+    })
+    dc.on('iceStateChanged', (state) => {
+      console.log(`[FS] dc.onIceStateChanged: ${state}`)
 
-    this._setupRTCPeerConnection(dc.peerConnection)
+      if (state === 'disconnected' || state === 'failed') {
+        this.err.setState(ERR_TEXT.ICE_FAIL)
+      }
+    })
+    dc.on('close', () => {
+      console.log('[FS] dc.onclose')
+      toast.warning('Peer has left')
+    })
   }
 
   private async _ensureNetworkInfo(maxTries = 3, interval = 1000) {

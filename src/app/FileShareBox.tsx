@@ -33,16 +33,22 @@ export default function FileShareBox() {
             }
           }}
         />
-        <div className="border-error flex justify-center gap-4 rounded-lg border border-dashed p-6 hover:cursor-pointer hover:bg-accent">
-          <LogOut
-            className="text-error"
-            onClick={() => {
-              location.href = '/'
-            }}
-          />
-        </div>
+        <LogoutBtn />
       </div>
       <FileList />
+    </div>
+  )
+}
+
+function LogoutBtn() {
+  return (
+    <div className="flex justify-center gap-4 rounded-lg border border-dashed border-error p-6 hover:cursor-pointer hover:bg-accent">
+      <LogOut
+        className="text-error"
+        onClick={() => {
+          location.href = '/'
+        }}
+      />
     </div>
   )
 }
