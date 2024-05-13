@@ -2,13 +2,10 @@ import { atomx } from 'helux'
 import Peer, { DataConnection, PeerOptions } from 'peerjs'
 
 export enum ConnectStatus {
+  OFFLINE,
   WAITING,
   CONNECTING,
   CONNECTED,
-  OFFLINE,
-}
-export type WebRtcManagerEventMap = {
-  statusChange: (status: ConnectStatus) => void
 }
 
 const PEERJS_CONFIG: PeerOptions = {
@@ -32,9 +29,10 @@ const PEERJS_CONFIG: PeerOptions = {
 export class WebRtcManager {
   code = ''
   status = atomx<ConnectStatus>(ConnectStatus.OFFLINE)
-  networkInfo = atomx<
-    Awaited<ReturnType<typeof getSelectedCandidate>> | undefined
-  >(undefined)
+  err = atomx<string | null>(null)
+  networkInfo = atomx<Awaited<ReturnType<typeof getSelectedCandidate>> | null>(
+    null,
+  )
 
   protected _peer: Peer | null = null
   protected _conn: DataConnection | null = null
@@ -56,21 +54,27 @@ export class WebRtcManager {
     this._peer?.destroy()
     this._peer = null
     this.status.setState(ConnectStatus.OFFLINE)
+    this.err.setState(null)
+    this.networkInfo.setState(null)
   }
 
   private _setupPeerJS() {
-    const code = `gstarp_file-share_${this.code}`
-    this._peer = new Peer(code, PEERJS_CONFIG)
+    const realCode = `gstarp_file-share_${this.code}`
+    this._peer = new Peer(realCode, PEERJS_CONFIG)
     // if id already taken, just connect it
     this._peer.on('error', (err) => {
       if (err.type === 'unavailable-id') {
-        this._connect(code)
+        this._connect(realCode)
       }
       // TODO: error handling
       console.error(err)
     })
     this._peer.on('open', () => {
       this.status.setState(ConnectStatus.WAITING)
+      console.log(this._peer)
+    })
+    this._peer.on('call', () => {
+      this.status.setState(ConnectStatus.CONNECTING)
     })
     this._peer.on('connection', (conn) => {
       this._setupDataConnection(conn)
@@ -78,11 +82,23 @@ export class WebRtcManager {
   }
 
   private _connect(peerId: string) {
+    this._peer?.destroy()
     this._peer = new Peer(PEERJS_CONFIG)
     this._peer.on('open', () => {
       this.status.setState(ConnectStatus.CONNECTING)
       this._setupDataConnection(this._peer!.connect(peerId))
     })
+  }
+
+  private _setupRTCPeerConnection(pc: RTCPeerConnection) {
+    pc.oniceconnectionstatechange = () => {
+      if (
+        pc.iceConnectionState === 'disconnected' ||
+        pc.iceConnectionState === 'failed'
+      ) {
+        this.err.setState('Connection to peer failed, please check firewall')
+      }
+    }
   }
 
   private _setupDataConnection(dc: DataConnection) {
@@ -95,6 +111,8 @@ export class WebRtcManager {
     dc.on('data', (data) => {
       this._onData?.(data)
     })
+
+    this._setupRTCPeerConnection(dc.peerConnection)
   }
 
   private async _ensureNetworkInfo(maxTries = 3, interval = 1000) {

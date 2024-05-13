@@ -1,0 +1,4 @@
+/* hide shadcn/ui default dialog close icon  */
+div[role='dialog'] > button:first-of-type {
+  display: none;
+}

@@ -5,8 +5,10 @@ import { checkCode, genCode } from '@/lib/code'
 import { ConnectStatus } from '@/lib/webrtc'
 
 import ConnectBox from './ConnectBox'
+import { ConnectDialog } from './ConnectDialog'
 import Error, { toErrorPage } from './Error'
 import FileShareBox from './FileShareBox'
+import './Home.css'
 import { FileShareGlobal } from './store'
 
 export function Home() {
@@ -48,6 +50,12 @@ function Main({ code }: { code: string }) {
   }, [code])
 
   const [status] = FileShareGlobal.manager.status.useState()
+  const connected = status === ConnectStatus.CONNECTED
 
-  return status !== ConnectStatus.CONNECTED ? <ConnectBox /> : <FileShareBox />
+  return (
+    <>
+      {connected ? <FileShareBox /> : <ConnectBox />}
+      <ConnectDialog />
+    </>
+  )
 }

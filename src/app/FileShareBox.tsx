@@ -1,4 +1,11 @@
-import { Check, Download, MonitorDown, MonitorUp, X } from 'lucide-react'
+import {
+  Check,
+  Download,
+  LogOut,
+  MonitorDown,
+  MonitorUp,
+  X,
+} from 'lucide-react'
 
 import FileInput from '@/components/FileInput'
 import { Button } from '@/components/ui/button'
@@ -17,14 +24,24 @@ import { FileShareGlobal } from './store'
 export default function FileShareBox() {
   return (
     <div className="flex max-w-[40rem] flex-1 flex-col px-2 py-4 sm:px-4">
-      <FileInput
-        className="mb-4 w-full"
-        onChange={(files) => {
-          if (files.length > 0) {
-            FileShareGlobal.manager?.sendFile(files[0])
-          }
-        }}
-      />
+      <div className="mb-4 flex gap-4">
+        <FileInput
+          className="flex-1"
+          onChange={(files) => {
+            if (files.length > 0) {
+              FileShareGlobal.manager.sendFile(files[0])
+            }
+          }}
+        />
+        <div className="border-error flex justify-center gap-4 rounded-lg border border-dashed p-6 hover:cursor-pointer hover:bg-accent">
+          <LogOut
+            className="text-error"
+            onClick={() => {
+              location.href = '/'
+            }}
+          />
+        </div>
+      </div>
       <FileList />
     </div>
   )

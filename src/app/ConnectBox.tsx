@@ -23,8 +23,8 @@ export default function ConnectBox() {
       <div className="mb-8 w-fit rounded bg-white p-2">
         <QRCode size={200} value={url} />
       </div>
-      <div className="flex h-10 items-center rounded-md border border-input px-4 py-2 text-sm">
-        <p>{url}</p>
+      <div className="flex h-10 max-w-[90vw] items-center rounded-md border border-input px-4 py-2">
+        <p className="truncate text-sm">{url}</p>
         <Copy
           className="ml-4 transition-opacity hover:cursor-pointer hover:opacity-60"
           size={18}
