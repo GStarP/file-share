@@ -51,6 +51,7 @@ export class WebRtcManager {
         this._connect(code)
       }
       // TODO: error handling
+      console.error(err)
     })
     this._peer.on('open', () => {
       this.status.setState(ConnectStatus.WAITING)
