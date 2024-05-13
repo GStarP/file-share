@@ -1,5 +1,5 @@
 import { atomx } from 'helux'
-import Peer, { DataConnection } from 'peerjs'
+import Peer, { DataConnection, PeerOptions } from 'peerjs'
 
 export enum ConnectStatus {
   WAITING,
@@ -9,6 +9,24 @@ export enum ConnectStatus {
 }
 export type WebRtcManagerEventMap = {
   statusChange: (status: ConnectStatus) => void
+}
+
+const PEERJS_CONFIG: PeerOptions = {
+  debug: 3,
+  config: {
+    iceServers: [
+      { urls: 'stun:stun.l.google.com:19302' },
+      { urls: 'stun:stun.l.google.com:5349' },
+      { urls: 'stun:stun1.l.google.com:3478' },
+      { urls: 'stun:stun1.l.google.com:5349' },
+      { urls: 'stun:stun2.l.google.com:19302' },
+      { urls: 'stun:stun2.l.google.com:5349' },
+      { urls: 'stun:stun3.l.google.com:3478' },
+      { urls: 'stun:stun3.l.google.com:5349' },
+      { urls: 'stun:stun4.l.google.com:19302' },
+      { urls: 'stun:stun4.l.google.com:5349' },
+    ],
+  },
 }
 
 export class WebRtcManager {
@@ -42,9 +60,7 @@ export class WebRtcManager {
 
   private _setupPeerJS() {
     const code = `gstarp_file-share_${this.code}`
-    this._peer = new Peer(code, {
-      debug: 3,
-    })
+    this._peer = new Peer(code, PEERJS_CONFIG)
     // if id already taken, just connect it
     this._peer.on('error', (err) => {
       if (err.type === 'unavailable-id') {
@@ -62,7 +78,7 @@ export class WebRtcManager {
   }
 
   private _connect(peerId: string) {
-    this._peer = new Peer({ debug: 3 })
+    this._peer = new Peer(PEERJS_CONFIG)
     this._peer.on('open', () => {
       this.status.setState(ConnectStatus.CONNECTING)
       this._setupDataConnection(this._peer!.connect(peerId))
