@@ -9,6 +9,7 @@ import {
 
 import FileInput from '@/components/FileInput'
 import { Button } from '@/components/ui/button'
+import { Progress } from '@/components/ui/progress'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   RecvFile,
@@ -70,12 +71,15 @@ function FileList() {
 function FileItem({ file }: { file: SendFile | RecvFile }) {
   const Icon = file.kind === ShareFileKind.SEND ? MonitorUp : MonitorDown
 
+  const progress =
+    file.size === 0 ? 0 : Math.min(100, (file.progress / file.size) * 100)
+
   return (
     <div className="flex flex-row rounded-lg border p-4">
       <Icon className="mr-4" size={28} />
 
-      <div className="flex flex-1 flex-col">
-        <div className="mb-0.5 break-all text-sm">{file.name}</div>
+      <div className="mr-1 flex flex-1 flex-col gap-0.5">
+        <div className="break-all text-sm">{file.name}</div>
         <div className="flex flex-row items-center text-sm text-muted-foreground">
           <div>
             {file.status === ShareFileStatus.SHARING
@@ -90,10 +94,22 @@ function FileItem({ file }: { file: SendFile | RecvFile }) {
               ? file.err || 'Unknown Error'
               : fileSizeStr(file.size)}
           </div>
+          {file.status === ShareFileStatus.SHARING && progress < 100 && (
+            <>
+              <div className="mx-1.5 h-2/3 w-[1px] bg-border"></div>
+              <p>{fileSizeStr(file.rate)}/s</p>
+            </>
+          )}
         </div>
+        {file.status === ShareFileStatus.SHARING && (
+          <div className="flex items-center">
+            <Progress className="mr-2 h-2 flex-1" value={progress} />
+            <p className="w-8 text-xs">{progress.toFixed(0)}%</p>
+          </div>
+        )}
       </div>
 
-      <div className="ml-2 flex h-full flex-row items-center gap-1">
+      <div className="ml-2 flex h-full flex-row items-center gap-1 self-center">
         {file.status === ShareFileStatus.WAITING &&
           file.kind === ShareFileKind.RECV && (
             <>

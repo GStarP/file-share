@@ -22,6 +22,7 @@ type ShareFile = FileInfo & {
   status: ShareFileStatus
   err?: string
   progress: number
+  rate: number
 }
 
 export enum ShareFileKind {
@@ -72,11 +73,36 @@ const SHARE_FILE_ERR = {
   NETWORK: 'network error',
 }
 
+class Progress {
+  private lastTs = 0
+  private lastSize = 0
+  private curSize = 0
+
+  constructor(public size: number) {}
+
+  update(size: number) {
+    this.curSize += size
+    // ! update every 1s
+    const ts = Date.now()
+    const diff = ts - this.lastTs
+    if (diff >= 1000) {
+      const progress = this.curSize
+      const rate = ((progress - this.lastSize) / diff) * 1000
+      this.lastSize = progress
+      this.lastTs = ts
+      return [this.curSize, rate]
+    }
+    return null
+  }
+}
+
 export class FileShareManager extends WebRtcManager {
   files = atomx(new Map<string, SendFile | RecvFile>())
 
   private _curSendFileId: string | undefined = undefined
   private _curRecvFileId: string | undefined = undefined
+  private _sendProgress = new Progress(0)
+  private _recvProgress = new Progress(0)
 
   constructor() {
     super()
@@ -85,7 +111,7 @@ export class FileShareManager extends WebRtcManager {
   protected _onData: ((data: unknown) => void) | undefined = async (data) => {
     if (typeof data === 'string') {
       const msg: Msg = JSON.parse(data)
-      console.debug('onData', msg)
+      console.debug('[FS] onData', msg)
       if (msg.type === MsgType.SEND) {
         this._onSend(msg.data)
       } else if (msg.type === MsgType.SEND_ACK) {
@@ -97,6 +123,42 @@ export class FileShareManager extends WebRtcManager {
       }
     } else {
       this._onFileData(data as ArrayBuffer)
+    }
+  }
+
+  protected _onDataChunk?: ((data: ArrayBuffer) => void) | undefined = (
+    data,
+  ) => {
+    console.debug('_onDataChunk:', data.byteLength)
+    const ret = this._recvProgress.update(data.byteLength)
+    if (ret) {
+      this.files.setDraft((draft) => {
+        if (this._curRecvFileId) {
+          const file = draft.get(this._curRecvFileId)
+          if (file) {
+            file.progress = ret[0]
+            file.rate = ret[1]
+          }
+        }
+      })
+    }
+  }
+
+  protected _onDataChunkSent?: ((size: number) => void) | undefined = (
+    size,
+  ) => {
+    console.debug('_onDataChunkSent:', size)
+    const ret = this._sendProgress.update(size)
+    if (ret) {
+      this.files.setDraft((draft) => {
+        if (this._curSendFileId) {
+          const file = draft.get(this._curSendFileId)
+          if (file) {
+            file.progress = ret[0]
+            file.rate = ret[1]
+          }
+        }
+      })
     }
   }
 
@@ -114,6 +176,7 @@ export class FileShareManager extends WebRtcManager {
         kind: ShareFileKind.SEND,
         status: ShareFileStatus.WAITING,
         progress: 0,
+        rate: 0,
         file: rawFile,
       })
     })
@@ -149,6 +212,7 @@ export class FileShareManager extends WebRtcManager {
         kind: ShareFileKind.RECV,
         status: ShareFileStatus.WAITING,
         progress: 0,
+        rate: 0,
       })
     })
   }
@@ -221,7 +285,17 @@ export class FileShareManager extends WebRtcManager {
   private _startRecvFile(id: string) {
     if (this._curRecvFileId === undefined) {
       this._curRecvFileId = id
-      this.sendData(JSON.stringify({ type: MsgType.SEND_START, data: id }))
+      const file = this.files.stateRoot.val.get(id)
+      if (file) {
+        this._recvProgress = new Progress(file.size)
+        this.sendData(JSON.stringify({ type: MsgType.SEND_START, data: id }))
+        this.files.setDraft((draft) => {
+          const file = draft.get(id)
+          if (file) {
+            file.status = ShareFileStatus.SHARING
+          }
+        })
+      }
     } else {
       console.warn(
         `_startRecvFile: other file is sharing, id=${this._curRecvFileId}`,
@@ -231,7 +305,8 @@ export class FileShareManager extends WebRtcManager {
 
   private async _startSendFile(file: SendFile) {
     this._curSendFileId = file.id
-    console.log('[_startSendFile]', this._curSendFileId)
+    this._sendProgress = new Progress(file.size)
+    console.log('[FS] startSendFile:', this._curSendFileId)
     const buffer = await readFileAsArrayBuffer(file.file)
     this.sendData(buffer)
   }

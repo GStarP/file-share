@@ -41,7 +41,11 @@ export class WebRtcManager {
 
   protected _peer: Peer | null = null
   protected _conn: DataConnection | null = null
+
+  /* @Override */
   protected _onData?: (data: unknown) => void
+  protected _onDataChunk?: (data: ArrayBuffer) => void
+  protected _onDataChunkSent?: (size: number) => void
 
   setup(code: string) {
     this.code = code
@@ -92,32 +96,23 @@ export class WebRtcManager {
     })
   }
 
-  private _setupRTCPeerConnection(pc: RTCPeerConnection) {
-    pc.oniceconnectionstatechange = () => {
-      console.log(
-        `[FS] pc.oniceconnectionstatechange: ${pc.iceConnectionState}`,
-      )
-      if (
-        pc.iceConnectionState === 'disconnected' ||
-        pc.iceConnectionState === 'failed'
-      ) {
-        this.err.setState(ERR_TEXT.ICE_FAIL)
-      }
-    }
-  }
-
   private _setupDataConnection(dc: DataConnection) {
     this._conn = dc
 
     this._setupRTCPeerConnection(dc.peerConnection)
 
     dc.on('open', () => {
+      this._setupRTCDataChannel(dc.dataChannel)
+
       this.status.setState(ConnectStatus.CONNECTED)
       this._ensureNetworkInfo()
       this._peer?.disconnect()
     })
     dc.on('data', (data) => {
       this._onData?.(data)
+    })
+    dc.on('chunkSent', (size) => {
+      this._onDataChunkSent?.(size)
     })
     dc.on('error', (e) => {
       console.log(`[FS] dc.onerror: ${e}`)
@@ -133,6 +128,28 @@ export class WebRtcManager {
       console.log('[FS] dc.onclose')
       toast.warning('Peer has left')
     })
+  }
+
+  private _setupRTCPeerConnection(pc: RTCPeerConnection) {
+    pc.oniceconnectionstatechange = () => {
+      console.log(
+        `[FS] pc.oniceconnectionstatechange: ${pc.iceConnectionState}`,
+      )
+      if (
+        pc.iceConnectionState === 'disconnected' ||
+        pc.iceConnectionState === 'failed'
+      ) {
+        this.err.setState(ERR_TEXT.ICE_FAIL)
+      }
+    }
+  }
+
+  private _setupRTCDataChannel(rdc: RTCDataChannel) {
+    rdc.onmessage = (e) => {
+      if (e.data instanceof ArrayBuffer) {
+        this._onDataChunk?.(e.data)
+      }
+    }
   }
 
   private async _ensureNetworkInfo(maxTries = 3, interval = 1000) {
