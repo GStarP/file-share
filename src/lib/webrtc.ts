@@ -43,9 +43,10 @@ export class WebRtcManager {
   protected _conn: DataConnection | null = null
 
   /* @Override */
-  protected _onData?: (data: unknown) => void
-  protected _onDataChunk?: (data: ArrayBuffer) => void
-  protected _onDataChunkSent?: (size: number) => void
+  protected _onMessage?: (msg: string) => void
+  protected _onData?: (data: ArrayBuffer) => void
+  protected _onSendProgress?: (progress: number) => void
+  protected _onRecvProgress?: (progress: number) => void
 
   setup(code: string) {
     this.code = code
@@ -102,17 +103,21 @@ export class WebRtcManager {
     this._setupRTCPeerConnection(dc.peerConnection)
 
     dc.on('open', () => {
-      this._setupRTCDataChannel(dc.dataChannel)
-
       this.status.setState(ConnectStatus.CONNECTED)
       this._ensureNetworkInfo()
       this._peer?.disconnect()
     })
-    dc.on('data', (data) => {
-      this._onData?.(data)
+    dc.on('message', (msg) => {
+      this._onMessage?.(msg)
     })
-    dc.on('chunkSent', (size) => {
-      this._onDataChunkSent?.(size)
+    dc.on('data', (data) => {
+      this._onData?.(data as ArrayBuffer)
+    })
+    dc.on('recvProgress', (progress) => {
+      this._onRecvProgress?.(progress)
+    })
+    dc.on('sendProgress', (progress) => {
+      this._onSendProgress?.(progress)
     })
     dc.on('error', (e) => {
       console.log(`[FS] dc.onerror: ${e}`)
@@ -140,14 +145,6 @@ export class WebRtcManager {
         pc.iceConnectionState === 'failed'
       ) {
         this.err.setState(ERR_TEXT.ICE_FAIL)
-      }
-    }
-  }
-
-  private _setupRTCDataChannel(rdc: RTCDataChannel) {
-    rdc.onmessage = (e) => {
-      if (e.data instanceof ArrayBuffer) {
-        this._onDataChunk?.(e.data)
       }
     }
   }

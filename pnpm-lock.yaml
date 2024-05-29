@@ -3093,7 +3093,7 @@ packages:
     dev: true
 
   file:peerjs-1.5.4.tgz:
-    resolution: {integrity: sha512-vj42W9keFSqkUUzVMeRnNqLS8VvckP0piOT0m8oiRfZVdgEZPCCl8pKhwfZ8Tf6saY0fub5yP0jPHRsYM2TSGw==, tarball: file:peerjs-1.5.4.tgz}
+    resolution: {integrity: sha512-kRr9sGOOp1dMNK4kz70+b08Pzvi0Arc1zdkP0TR02WXvs5bCtIliIvRi0Ft4bCSWGstKuqvc1Vj9WakqsM3sog==, tarball: file:peerjs-1.5.4.tgz}
     name: peerjs
     version: 1.5.4
     engines: {node: '>= 14'}
